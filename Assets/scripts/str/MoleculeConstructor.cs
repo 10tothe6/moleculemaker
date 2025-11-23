@@ -35,8 +35,7 @@ public class MoleculeConstructor : MonoBehaviour
     [Header("DATA")]
     public float atomSizeMultiplier;
     public float[] atomSizes;
-    public str_atom[] atomPool;
-    public str_bond[] bonds;
+    public List<str_bond> bonds;
 
     public Sprite[] atomIcons;
     public string[] atomNames;
@@ -60,6 +59,16 @@ public class MoleculeConstructor : MonoBehaviour
     public GameObject p_atom;
     public Transform t_atomContainer;
 
+    // BOND STUFF
+    public Transform t_bondContainer;
+    public GameObject p_line; // just used for visuals, the export process is different
+    public float bondWidth;
+
+    // BOUNDING BOX STUFF
+    public Transform t_boundingLineContainer;
+    public float boundingBoxOffset;
+    public float boundingBoxLineWidth;
+
     // molecule editing ****
 
     public void GrabAtom(int type)
@@ -82,6 +91,89 @@ public class MoleculeConstructor : MonoBehaviour
         atomObjects.Add(g_newAtom.transform);
     }
 
+    void AttachAtomToMolecule(VisualAtom attachPoint)
+    {
+        Vector3 dir = atomInHand.transform.position - attachPoint.transform.position;
+
+        float bondLength = GetBondLength(attachPoint.type, atomInHand.type);
+        
+        atomInHand.transform.position = attachPoint.transform.position +
+        dir.normalized * bondLength;
+
+        bonds.Add(new str_bond(atomObjects.Count - 1, atomObjects.IndexOf(attachPoint.transform), bondLength));
+
+        atomInHand = null;
+
+        GenerateBondLines();
+    }
+
+    void GenerateBondLines()
+    {
+        CanvasUtils.DestroyChildren(t_bondContainer.gameObject);
+        for (int i = 0; i < bonds.Count; i++)
+        {
+            Vector3 a = atomObjects[bonds[i].a].position;
+            Vector3 b = atomObjects[bonds[i].b].position;
+
+            GameObject g_newBond = Instantiate(p_line, t_bondContainer);
+            g_newBond.transform.position = (a + b) / 2;
+            g_newBond.transform.up = b - a;
+            g_newBond.transform.localScale = new Vector3(
+                bondWidth,
+                (b-a).magnitude,
+                bondWidth
+            );
+        }
+    }
+    void RefreshBondLines()
+    {
+        for (int i = 0; i < bonds.Count; i++)
+        {
+            Vector3 a = atomObjects[bonds[i].a].position;
+            Vector3 b = atomObjects[bonds[i].b].position;
+
+            GameObject g_newBond = t_bondContainer.GetChild(i).gameObject;
+            g_newBond.transform.position = (a + b) / 2;
+            g_newBond.transform.up = b - a;
+            g_newBond.transform.localScale = new Vector3(
+                bondWidth,
+                (b-a).magnitude,
+                bondWidth
+            );
+        }
+    }
+    Vector4 GetBounds()
+    {
+        Vector4 result = new Vector4(9999, -9999, 9999, -9999); // xMin, xMAx, yMin, yMax
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            if (atomObjects[i].position.x < result.x)
+            {
+                result.x = atomObjects[i].position.x;
+            }
+            if (atomObjects[i].position.x > result.y)
+            {
+                result.y = atomObjects[i].position.x;
+            }
+
+            if (atomObjects[i].position.z < result.z)
+            {
+                result.z = atomObjects[i].position.z;
+            }
+            if (atomObjects[i].position.z > result.w)
+            {
+                result.w = atomObjects[i].position.z;
+            }
+        }
+
+        return result;
+    }
+
+    float GetBondLength(int typeA, int typeB)
+    {
+        return 2;
+    }
+
     // ****
 
     void Start()
@@ -92,6 +184,35 @@ public class MoleculeConstructor : MonoBehaviour
 
     void Update()
     {
+        if (atomObjects.Count > 1)
+        {
+            t_boundingLineContainer.gameObject.SetActive(true);
+
+            // updating the bounding box
+            Vector4 bounds = GetBounds();
+            t_boundingLineContainer.GetChild(0).position = new Vector3((bounds.x + bounds.y) / 2, boundingBoxOffset, bounds.z);
+            t_boundingLineContainer.GetChild(0).up = Vector3.right;
+            t_boundingLineContainer.GetChild(0).localScale = new Vector3(boundingBoxLineWidth, bounds.y - bounds.x, boundingBoxLineWidth);
+            t_boundingLineContainer.GetChild(1).position = new Vector3((bounds.x + bounds.y) / 2, boundingBoxOffset, bounds.w);
+            t_boundingLineContainer.GetChild(1).up = Vector3.right;
+            t_boundingLineContainer.GetChild(1).localScale = new Vector3(boundingBoxLineWidth, bounds.y - bounds.x, boundingBoxLineWidth);
+
+            t_boundingLineContainer.GetChild(2).position = new Vector3(bounds.x, boundingBoxOffset, (bounds.z + bounds.w) / 2);
+            t_boundingLineContainer.GetChild(2).up = Vector3.forward;
+            t_boundingLineContainer.GetChild(2).localScale = new Vector3(boundingBoxLineWidth, bounds.w - bounds.z, boundingBoxLineWidth);
+            t_boundingLineContainer.GetChild(3).position = new Vector3(bounds.y, boundingBoxOffset, (bounds.z + bounds.w) / 2);
+            t_boundingLineContainer.GetChild(3).up = Vector3.forward;
+            t_boundingLineContainer.GetChild(3).localScale = new Vector3(boundingBoxLineWidth, bounds.w - bounds.z, boundingBoxLineWidth);
+        } else {
+
+            t_boundingLineContainer.gameObject.SetActive(false);
+        }
+
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
+        {
+            pause = !pause;
+        }
+
         if (atomInHand != null)
         {
             Vector3 mPos = Mouse.current.position.ReadValue();
@@ -100,18 +221,20 @@ public class MoleculeConstructor : MonoBehaviour
             Physics.SyncTransforms();
 
             RaycastHit hit;
+            bool hitOtherAtom = false;
             if (Physics.Raycast(Camera.main.transform.position, worldPos - Camera.main.transform.position, out hit, Mathf.Infinity))
             {
                 atomInHand.transform.position = hit.point;
+                hitOtherAtom = true;
             }
             else
             {
                 atomInHand.transform.position = worldPos;
             }
 
-            if (Mouse.current.leftButton.wasPressedThisFrame)
+            if (Mouse.current.leftButton.wasPressedThisFrame && hitOtherAtom)
             {
-                atomInHand = null;
+                AttachAtomToMolecule(hit.collider.gameObject.GetComponent<VisualAtom>());
             }
         }
 
@@ -120,11 +243,13 @@ public class MoleculeConstructor : MonoBehaviour
             GenerateRandomIndices();
             Adjust();
             Constrain();
+
+            RefreshBondLines();
         }
 
         if (showBondLines)
         {
-            for (int i = 0; i < bonds.Length; i++)
+            for (int i = 0; i < bonds.Count; i++)
             {
                 Debug.DrawLine(atomObjects[bonds[i].a].position, atomObjects[bonds[i].b].position);
             }
@@ -133,14 +258,14 @@ public class MoleculeConstructor : MonoBehaviour
 
     void GenerateRandomIndices()
     {
-        randomIndices = new int[bonds.Length];
+        randomIndices = new int[bonds.Count];
         List<int> remainingIndices = new List<int>();
-        for (int i = 0; i < bonds.Length; i++)
+        for (int i = 0; i < bonds.Count; i++)
         {
             remainingIndices.Add(i);
         }
 
-        for (int i = 0; i < bonds.Length; i++)
+        for (int i = 0; i < bonds.Count; i++)
         {
             int index = Random.Range(0, remainingIndices.Count);
             randomIndices[i] = remainingIndices[index];
@@ -179,7 +304,7 @@ public class MoleculeConstructor : MonoBehaviour
     bool IsSameBondingHeirarchy(int a, int b)
     {
         List<int> connectingToA = new List<int>();
-        for (int i = 0; i < bonds.Length; i++)
+        for (int i = 0; i < bonds.Count; i++)
         {
             if (bonds[i].a == a)
             {
@@ -190,7 +315,7 @@ public class MoleculeConstructor : MonoBehaviour
             }
         }
 
-        for (int i = 0; i < bonds.Length; i++)
+        for (int i = 0; i < bonds.Count; i++)
         {
             if (bonds[i].a == b)
             {
@@ -212,7 +337,7 @@ public class MoleculeConstructor : MonoBehaviour
 
     void Constrain()
     {
-        for (int i = 0; i < bonds.Length; i++)
+        for (int i = 0; i < bonds.Count; i++)
         {
             Vector3 a = atomObjects[bonds[randomIndices[i]].a].position;
             Vector3 b = atomObjects[bonds[randomIndices[i]].b].position;

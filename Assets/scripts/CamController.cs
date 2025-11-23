@@ -56,7 +56,7 @@ public class CamController : MonoBehaviour
         {
             if (Mouse.current.rightButton.isPressed)
             {
-                transform.Rotate(Vector3.up * Time.deltaTime * Mouse.current.delta.ReadValue().x * -orbitSpeed, Space.Self);
+                transform.Rotate(Vector3.up * Time.deltaTime * Mouse.current.delta.ReadValue().x * -orbitSpeed, Space.World);
                 transform.Rotate(Vector3.right * Time.deltaTime * Mouse.current.delta.ReadValue().y * orbitSpeed, Space.Self);
             }
 

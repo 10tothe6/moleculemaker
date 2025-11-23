@@ -7,6 +7,6 @@ public class VisualAtom : MonoBehaviour
     public void SetType()
     {
         GetComponent<MeshRenderer>().sharedMaterial = MoleculeConstructor.Instance.m_atoms[type];
-        transform.localScale = Vector3.one * MoleculeConstructor.Instance.atomSizes[type];
+        transform.localScale = Vector3.one * MoleculeConstructor.Instance.atomSizes[type] * MoleculeConstructor.Instance.atomSizeMultiplier;
     }
 }
