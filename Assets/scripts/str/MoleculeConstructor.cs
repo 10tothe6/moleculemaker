@@ -69,6 +69,10 @@ public class MoleculeConstructor : MonoBehaviour
     public float boundingBoxOffset;
     public float boundingBoxLineWidth;
 
+    // SUPPORTS
+    public Transform t_supportContainer;
+    public float supportWidth;
+
     // molecule editing ****
 
     public void GrabAtom(int type)
@@ -174,6 +178,14 @@ public class MoleculeConstructor : MonoBehaviour
         return 2;
     }
 
+    void GenerateSupport(VisualAtom target)
+    {
+        Transform t_newSupport = Instantiate(p_line, t_supportContainer).transform;
+
+        t_newSupport.position = new Vector3(target.transform.position.x, boundingBoxOffset + (target.transform.position.y - boundingBoxOffset) / 2, target.transform.position.z);
+        t_newSupport.localScale = Vector3.one * supportWidth + Vector3.up * ((target.transform.position.y - boundingBoxOffset) - supportWidth);
+    }
+
     // ****
 
     void Start()
@@ -235,6 +247,19 @@ public class MoleculeConstructor : MonoBehaviour
             if (Mouse.current.leftButton.wasPressedThisFrame && hitOtherAtom)
             {
                 AttachAtomToMolecule(hit.collider.gameObject.GetComponent<VisualAtom>());
+            }
+        }
+        else
+        {
+            if (Mouse.current.leftButton.wasPressedThisFrame)
+            {
+                RaycastHit hit;
+                Vector3 mPos = Mouse.current.position.ReadValue();
+                Vector3 worldPos = Camera.main.ScreenToWorldPoint(new Vector3(mPos.x, mPos.y, 10));
+                if (Physics.Raycast(Camera.main.transform.position, worldPos - Camera.main.transform.position, out hit, Mathf.Infinity))
+                {
+                    GenerateSupport(hit.collider.gameObject.GetComponent<VisualAtom>());
+                }
             }
         }
 
