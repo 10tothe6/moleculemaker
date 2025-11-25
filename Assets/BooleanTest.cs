@@ -556,22 +556,25 @@ public class BooleanTest : MonoBehaviour
 
     bool IsPointInRect(Vector3 point, Transform tool)
     {
-        Vector3 min = new Vector3(tool.position.x - tool.localScale.x/2, tool.position.y - tool.localScale.y/2, tool.position.z - tool.localScale.z/2);
-        Vector3 max = new Vector3(tool.position.x + tool.localScale.x/2, tool.position.y + tool.localScale.y/2, tool.position.z + tool.localScale.z/2);
-        return IsPointInAlignedBounds(point, min, max);
+        Vector3 min = Vector3.one * -0.5f;
+        Vector3 max = Vector3.one * 0.5f;
+        return IsPointInAlignedBounds(tool.InverseTransformPoint(point), min, max);
     }
 
+    // involves direction
     Vector3 GetPointInRect(Vector3 point, Vector3 desiredPoint, Transform tool)
     {
-        Vector3 min = new Vector3(tool.position.x - tool.localScale.x/2, tool.position.y - tool.localScale.y/2, tool.position.z - tool.localScale.z/2);
-        Vector3 max = new Vector3(tool.position.x + tool.localScale.x/2, tool.position.y + tool.localScale.y/2, tool.position.z + tool.localScale.z/2);
-        return GetDirectedPointInAlignedBounds(point, desiredPoint - point, min, max);
+        Vector3 min = Vector3.one * -0.5f;
+        Vector3 max = Vector3.one * 0.5f;
+        return tool.TransformPoint(GetDirectedPointInAlignedBounds(tool.InverseTransformPoint(point), tool.InverseTransformPoint(desiredPoint) - tool.InverseTransformPoint(point), min, max));
     }
+
+    // no direction, just clamping
     Vector3 GetPointInRectSimple(Vector3 point, Transform tool)
     {
-        Vector3 min = new Vector3(tool.position.x - tool.localScale.x/2, tool.position.y - tool.localScale.y/2, tool.position.z - tool.localScale.z/2);
-        Vector3 max = new Vector3(tool.position.x + tool.localScale.x/2, tool.position.y + tool.localScale.y/2, tool.position.z + tool.localScale.z/2);
-        return GetPointInAlignedBounds(point, min, max);
+        Vector3 min = Vector3.one * -0.5f;
+        Vector3 max = Vector3.one * 0.5f;
+        return tool.TransformPoint(GetPointInAlignedBounds(tool.InverseTransformPoint(point), min, max));
     }
 
     bool IsPointInAlignedBounds(Vector3 point, Vector3 minBounds, Vector3 maxBounds)
