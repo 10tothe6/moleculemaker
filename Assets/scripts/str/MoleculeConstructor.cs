@@ -40,6 +40,8 @@ public class MoleculeConstructor : MonoBehaviour
 
     public Sprite[] atomIcons;
     public string[] atomNames;
+
+    public int[] atomBondSpaces;
     
     public Material[] m_atoms;
 
