@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Data;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -66,33 +67,115 @@ public class MoleculeConstructor : MonoBehaviour
 
     // BOUNDING BOX STUFF
     public Transform t_boundingLineContainer;
-    public float boundingBoxOffset;
     public float boundingBoxLineWidth;
 
     // SUPPORTS
     public Transform t_supportContainer;
     public float supportWidth;
 
+    public VisualAtom interactingAtom;
+
+    public TextMeshProUGUI atomCountDisplay;
+
+    private int[] atomCounts;
+
+    void Start()
+    {
+        atomCounts = new int[atomNames.Length];
+        Application.targetFrameRate = 60;
+        atomObjects = new List<Transform>();
+
+        LoadMolecule(rw_utils.LoadMolecule());
+    }
+
+    void OnApplicationQuit()
+    {
+        rw_utils.SaveMolecule(GetMolecule());
+    }
+
     // molecule editing ****
 
-    public void GrabAtom(int type)
+    str_molecule GetMolecule()
     {
-        if (atomInHand != null) {return;} // can't have more than one atom in hand
+        str_molecule result = new str_molecule();
 
+        result.bonds = bonds;
+        
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            result.positions.Add(new DoubleVector3(atomObjects[i].position));
+            result.atomIndices.Add(new str_atom(atomObjects[i].GetComponent<VisualAtom>().type));
+        }
+
+        return result;
+    }
+
+    void CountAtoms()
+    {
+        atomCounts = new int[atomNames.Length];
+
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            atomCounts[atomObjects[i].GetComponent<VisualAtom>().type]++;
+        }
+    }
+
+    public void DeleteAllAtoms()
+    {
+        CanvasUtils.DestroyChildren(t_atomContainer.gameObject);
+        CanvasUtils.DestroyChildren(t_supportContainer.gameObject);
+        CanvasUtils.DestroyChildren(t_bondContainer.gameObject);
+
+        bonds = new List<str_bond>();
+        atomObjects = new List<Transform>();
+    }
+
+    public void LoadMolecule(str_molecule _mol)
+    {
+        if (_mol == null) return;
+
+        // clear all existing atoms
+        CanvasUtils.DestroyChildren(t_atomContainer.gameObject);
+        CanvasUtils.DestroyChildren(t_supportContainer.gameObject);
+        
+        for (int i = 0; i < _mol.positions.Count; i++)
+        {
+            MakeNewAtom(_mol.atomIndices[i].type, _mol.positions[i].ToVector3(), false);
+        }
+
+        bonds = _mol.bonds;
+        GenerateBondLines();
+    }
+
+    void MakeNewAtom(int type, Vector3 pos, bool addToHand)
+    {
         GameObject g_newAtom = Instantiate(p_atom, t_atomContainer);
         
         VisualAtom comp = g_newAtom.GetComponent<VisualAtom>();
         comp.type = type;
         comp.SetType();
 
-        atomInHand = comp;
-        
-        if (atomObjects.Count == 0)
+        if (addToHand)
         {
-            atomInHand = null;
-            g_newAtom.transform.position = Vector3.zero;
+            atomInHand = comp;
+
+            if (atomObjects.Count == 0)
+            {
+                atomInHand = null;
+            }
         }
+        
+        g_newAtom.transform.position = pos;
         atomObjects.Add(g_newAtom.transform);
+
+        CountAtoms();
+    }
+
+    public void GrabAtom(int type)
+    {
+        if (atomInHand != null) {return;} // can't have more than one atom in hand
+
+        MakeNewAtom(type, Vector3.zero, true);
     }
 
     void AttachAtomToMolecule(VisualAtom attachPoint)
@@ -146,75 +229,160 @@ public class MoleculeConstructor : MonoBehaviour
             );
         }
     }
-    Vector4 GetBounds()
+    Vector2[] GetBounds()
     {
-        Vector4 result = new Vector4(9999, -9999, 9999, -9999); // xMin, xMAx, yMin, yMax
+        Vector2[] result = new Vector2[]
+        {
+            new Vector2(9999,-9999),
+            new Vector2(9999,-9999),
+            new Vector2(9999,-9999)
+        };
+
         for (int i = 0; i < atomObjects.Count; i++)
         {
-            if (atomObjects[i].position.x < result.x)
+            if (atomObjects[i].position.x < result[0].x)
             {
-                result.x = atomObjects[i].position.x;
+                result[0].x = atomObjects[i].position.x;
             }
-            if (atomObjects[i].position.x > result.y)
+            if (atomObjects[i].position.x > result[0].y)
             {
-                result.y = atomObjects[i].position.x;
+                result[0].y = atomObjects[i].position.x;
             }
 
-            if (atomObjects[i].position.z < result.z)
+            if (atomObjects[i].position.y < result[1].x)
             {
-                result.z = atomObjects[i].position.z;
+                result[1].x = atomObjects[i].position.y;
             }
-            if (atomObjects[i].position.z > result.w)
+            if (atomObjects[i].position.y > result[1].y)
             {
-                result.w = atomObjects[i].position.z;
+                result[1].y = atomObjects[i].position.y;
+            }
+
+            if (atomObjects[i].position.z < result[2].x)
+            {
+                result[2].x = atomObjects[i].position.z;
+            }
+            if (atomObjects[i].position.z > result[2].y)
+            {
+                result[2].y = atomObjects[i].position.z;
             }
         }
 
         return result;
     }
 
-    float GetBondLength(int typeA, int typeB)
+    public float GetBondLength(int typeA, int typeB)
     {
-        return 2;
+        return 1.25f;
     }
 
     void GenerateSupport(VisualAtom target)
     {
         Transform t_newSupport = Instantiate(p_line, t_supportContainer).transform;
 
-        t_newSupport.position = new Vector3(target.transform.position.x, boundingBoxOffset + (target.transform.position.y - boundingBoxOffset) / 2, target.transform.position.z);
-        t_newSupport.localScale = Vector3.one * supportWidth + Vector3.up * ((target.transform.position.y - boundingBoxOffset) - supportWidth);
+        Vector2[] b = GetBounds();
+        t_newSupport.position = new Vector3(target.transform.position.x, (b[1].y - b[1].x)/2 + (target.transform.position.y - (b[1].y - b[1].x)/2) / 2, target.transform.position.z);
+        t_newSupport.localScale = Vector3.one * supportWidth + Vector3.up * ((target.transform.position.y - (b[1].y - b[1].x)/2) - supportWidth);
     }
 
     // ****
 
-    void Start()
+    void AddBondToMolecule(VisualAtom a, VisualAtom b)
     {
-        Application.targetFrameRate = 60;
-        atomObjects = new List<Transform>();
+        // adding a bond between two atoms, to make it cyclic
+        int aIndex = -1;
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            if (atomObjects[i].GetComponent<VisualAtom>() == a)
+            {
+                aIndex = i;
+                break;
+            }
+        }
+
+        int bIndex = -1;
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            if (atomObjects[i].GetComponent<VisualAtom>() == b)
+            {
+                bIndex = i;
+                break;
+            }
+        }
+
+        if (aIndex != -1 && bIndex != -1)
+        {
+            bonds.Add(new str_bond(aIndex, bIndex));
+            GenerateBondLines();
+        }
     }
 
     void Update()
     {
+        if (Keyboard.current.pKey.wasPressedThisFrame)
+        {
+            Exporter.Instance.RunExport(GetMolecule());
+        }
+        
+        atomCountDisplay.text = "";
+        for (int i = 0; i < atomCounts.Length; i++)
+        {
+            atomCountDisplay.text += atomNames[i] + ": " + atomCounts[i].ToString() + "     ";
+        }
+
+        // some quick hotkeys
+        if (Keyboard.current.digit1Key.wasReleasedThisFrame)
+        {
+            GrabAtom(0);
+        }
+        else if (Keyboard.current.digit2Key.wasReleasedThisFrame)
+        {
+            GrabAtom(1);
+        }
+        else if (Keyboard.current.digit3Key.wasReleasedThisFrame)
+        {
+            GrabAtom(2);
+        }
+        else if (Keyboard.current.digit4Key.wasReleasedThisFrame)
+        {
+            GrabAtom(3);
+        }
+        else if (Keyboard.current.digit5Key.wasReleasedThisFrame)
+        {
+            GrabAtom(4);
+        }
+        else if (Keyboard.current.digit6Key.wasReleasedThisFrame)
+        {
+            GrabAtom(5);
+        }
+
+
         if (atomObjects.Count > 1)
         {
             t_boundingLineContainer.gameObject.SetActive(true);
 
             // updating the bounding box
-            Vector4 bounds = GetBounds();
-            t_boundingLineContainer.GetChild(0).position = new Vector3((bounds.x + bounds.y) / 2, boundingBoxOffset, bounds.z);
+            Vector2[] bounds = GetBounds();
+            t_boundingLineContainer.GetChild(0).position = new Vector3((bounds[0].x + bounds[0].y) / 2, bounds[1].x, bounds[2].x);
             t_boundingLineContainer.GetChild(0).up = Vector3.right;
-            t_boundingLineContainer.GetChild(0).localScale = new Vector3(boundingBoxLineWidth, bounds.y - bounds.x, boundingBoxLineWidth);
-            t_boundingLineContainer.GetChild(1).position = new Vector3((bounds.x + bounds.y) / 2, boundingBoxOffset, bounds.w);
-            t_boundingLineContainer.GetChild(1).up = Vector3.right;
-            t_boundingLineContainer.GetChild(1).localScale = new Vector3(boundingBoxLineWidth, bounds.y - bounds.x, boundingBoxLineWidth);
+            t_boundingLineContainer.GetChild(0).localScale = new Vector3(boundingBoxLineWidth, bounds[0].y - bounds[0].x, boundingBoxLineWidth);
 
-            t_boundingLineContainer.GetChild(2).position = new Vector3(bounds.x, boundingBoxOffset, (bounds.z + bounds.w) / 2);
-            t_boundingLineContainer.GetChild(2).up = Vector3.forward;
-            t_boundingLineContainer.GetChild(2).localScale = new Vector3(boundingBoxLineWidth, bounds.w - bounds.z, boundingBoxLineWidth);
-            t_boundingLineContainer.GetChild(3).position = new Vector3(bounds.y, boundingBoxOffset, (bounds.z + bounds.w) / 2);
-            t_boundingLineContainer.GetChild(3).up = Vector3.forward;
-            t_boundingLineContainer.GetChild(3).localScale = new Vector3(boundingBoxLineWidth, bounds.w - bounds.z, boundingBoxLineWidth);
+            t_boundingLineContainer.GetChild(1).position = new Vector3(bounds[0].x, bounds[1].x, (bounds[2].x + bounds[2].y) / 2);
+            t_boundingLineContainer.GetChild(1).up = Vector3.forward;
+            t_boundingLineContainer.GetChild(1).localScale = new Vector3(boundingBoxLineWidth, bounds[2].y - bounds[2].x, boundingBoxLineWidth);
+            
+            t_boundingLineContainer.GetChild(2).position = new Vector3(bounds[0].x, (bounds[1].y + bounds[1].x)/2, bounds[2].x);
+            t_boundingLineContainer.GetChild(2).up = Vector3.up;
+            t_boundingLineContainer.GetChild(2).localScale = new Vector3(boundingBoxLineWidth, bounds[1].y - bounds[1].x, boundingBoxLineWidth);
+
+            // originally I had a full horizontal rectangle, but now I only have 2 lines so here's the code I don't need:
+
+            // t_boundingLineContainer.GetChild(1).position = new Vector3((bounds.x + bounds.y) / 2, boundingBoxOffset, bounds.w);
+            // t_boundingLineContainer.GetChild(1).up = Vector3.right;
+            // t_boundingLineContainer.GetChild(1).localScale = new Vector3(boundingBoxLineWidth, bounds.y - bounds.x, boundingBoxLineWidth);
+            // t_boundingLineContainer.GetChild(3).position = new Vector3(bounds.y, boundingBoxOffset, (bounds.z + bounds.w) / 2);
+            // t_boundingLineContainer.GetChild(3).up = Vector3.forward;
+            // t_boundingLineContainer.GetChild(3).localScale = new Vector3(boundingBoxLineWidth, bounds.w - bounds.z, boundingBoxLineWidth);
         } else {
 
             t_boundingLineContainer.gameObject.SetActive(false);
@@ -258,7 +426,24 @@ public class MoleculeConstructor : MonoBehaviour
                 Vector3 worldPos = Camera.main.ScreenToWorldPoint(new Vector3(mPos.x, mPos.y, 10));
                 if (Physics.Raycast(Camera.main.transform.position, worldPos - Camera.main.transform.position, out hit, Mathf.Infinity))
                 {
-                    GenerateSupport(hit.collider.gameObject.GetComponent<VisualAtom>());
+                    VisualAtom comp = hit.collider.gameObject.GetComponent<VisualAtom>();
+                    
+                    if (interactingAtom == null)
+                    {
+                        interactingAtom = comp;
+                    } else
+                    {
+                        if (interactingAtom == comp)
+                        {
+                            GenerateSupport(comp);
+                            interactingAtom = null;
+                        }
+                        else
+                        {
+                            AddBondToMolecule(comp, interactingAtom);
+                            interactingAtom = null;
+                        }
+                    }
                 }
             }
         }

@@ -15,7 +15,7 @@ public class str_bond
     {
         this.a = a;
         this.b = b;
-        this.bondLength = 1;
+        this.bondLength = 1.25f;
     }
     public str_bond(int a, int b, float bondLength)
     {

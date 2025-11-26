@@ -6,8 +6,7 @@ using UnityEngine;
 
 // anyways
 
-// TODO: allow for rotated cutting tools
-// then i'll finally be free
+// TODO: nothing! im free
 
 public class BooleanTest : MonoBehaviour
 {

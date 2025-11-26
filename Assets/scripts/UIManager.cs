@@ -27,4 +27,28 @@ public class UIManager : MonoBehaviour
     }
 
     public Transform t_canvas;
+
+    public GameObject g_controlMenu;
+    public GameObject g_newAtomMenu;
+    public GameObject g_infoMenu;
+
+    void Start()
+    {
+        g_controlMenu.SetActive(true);
+        g_newAtomMenu.SetActive(true);
+        g_infoMenu.SetActive(false);
+    }
+
+    public void ToggleInfoMenu()
+    {
+        g_infoMenu.SetActive(!g_infoMenu.activeSelf);
+    }
+    public void ToggleNewAtomMenu()
+    {
+        g_infoMenu.SetActive(!g_newAtomMenu.activeSelf);
+    }
+    public void ToggleControlMenu()
+    {
+        g_infoMenu.SetActive(!g_controlMenu.activeSelf);
+    }
 }
