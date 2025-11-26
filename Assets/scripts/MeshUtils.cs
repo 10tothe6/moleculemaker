@@ -1,65 +1,60 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// this may actually be the 2nd worst script I've had to write,
-// second ONLY to the planetary chunk system from the space game
-
-// anyways
-
-// TODO: nothing! im free
-
-public class BooleanTest : MonoBehaviour
+public class MeshUtils
 {
-    public MeshFilter result;
-
-    public MeshFilter a;
-    public MeshFilter b;
-
-    private List<Vector3> debugPoints; // vertices inside rect
-    private List<Vector3> debugPoints2; // replacement vertices
-    private List<Color> debugCols;
-
-    private List<Vector3> tempLines1; // connections affected
-    private List<Vector3> tempLines2; // connections affected
-
-    void OnDrawGizmos()
+    public static Mesh CombineMeshes(Mesh[] input)
     {
-        if (debugPoints == null) return;
+        Vector3[] vo = new Vector3[input.Length];
+        float[] vs = new float[input.Length];
 
-        Gizmos.color = Color.green;
-        for (int i = 0; i < debugPoints.Count; i++)
-        {
-            Gizmos.DrawSphere(debugPoints[i], 0.01f);
-        }
-        
-        for (int i = 0; i < debugPoints2.Count; i++)
-        {
-            Gizmos.color = debugCols[i];
-            Gizmos.DrawSphere(debugPoints2[i], 0.01f);
-        }
-
-        for (int i = 0; i < tempLines1.Count; i++)
-        {
-            Debug.DrawLine(tempLines1[i], tempLines2[i]);
-        }
+        for (int i = 0; i < vo.Length; i++) {
+            vo[i] = Vector3.zero;
+            vs[i] = 1;
+            }
+        return CombineMeshes(input, vo, vs);
     }
 
-    void Start()
+    public static Mesh CombineMeshes(Mesh[] input, Vector3[] offsets, float[] scales)
     {
-        debugCols = new List<Color>();
+        Mesh result = new Mesh();
 
-        debugPoints = new List<Vector3>();
-        debugPoints2 = new List<Vector3>();
-        tempLines1 = new List<Vector3>();
-        tempLines2 = new List<Vector3>();
+        List<Vector3> verts = new List<Vector3>();
+        List<Vector3> norms = new List<Vector3>();
+        List<Vector2> uvs = new List<Vector2>();
+        List<int> tris = new List<int>();
 
-        a.gameObject.SetActive(false);
-        b.gameObject.SetActive(false);
+        int triangleIndexOffset = 0;
+        for (int i = 0; i < input.Length; i++)
+        {
+            List<Vector2> currentUVs = new List<Vector2>();
+            input[i].GetUVs(0, currentUVs);
 
-        result.sharedMesh = BooleanCut(a.sharedMesh, a.transform, b.transform);
+            for (int j = 0; j < input[i].vertices.Length; j++)
+            {
+                verts.Add(input[i].vertices[j] * scales[i] + offsets[i]);
+                norms.Add(input[i].normals[j]);
+                uvs.Add(currentUVs[j]);
+            }
+
+            int[] currentTris = input[i].GetTriangles(0);
+            for (int j = 0; j < currentTris.Length; j++)
+            {
+                tris.Add(currentTris[j] + triangleIndexOffset);
+            }
+
+            triangleIndexOffset = verts.Count;
+        }
+
+        result.SetVertices(verts);
+        result.SetNormals(norms);
+        result.SetUVs(0, uvs);
+        result.SetTriangles(tris, 0);
+
+        return result;
     }
 
-    Mesh BooleanCut(Mesh source, Transform sourceOffset, Transform tool)
+    public static Mesh BooleanCut(Mesh source, Transform tool)
     {
         Mesh result = new Mesh();
 
@@ -86,7 +81,7 @@ public class BooleanTest : MonoBehaviour
             
             // now, we want to remove a vertex if its inside our tool, and replace it with other new vertices
             // this function checks if the vertex is inside the tool
-            if (IsPointInRect(sourceOffset.TransformPoint(source.vertices[i]), tool))
+            if (IsPointInRect(source.vertices[i], tool))
             {
                 Vector3 oldVertex = verts[verts.Count - 1]; // we'll need this later
                 verts.RemoveAt(verts.Count - 1);
@@ -114,7 +109,7 @@ public class BooleanTest : MonoBehaviour
                     // the vertex list at this point is NOT complete,
                     // so we use the original array
 
-                    if (!IsPointInRect(sourceOffset.TransformPoint(source.vertices[allConnectingIndices[j]]), tool))
+                    if (!IsPointInRect(source.vertices[allConnectingIndices[j]], tool))
                     { // again, only outside vertices are allowed
                         
                         if (!validConnectingIndices.Contains(allConnectingIndices[j]))
@@ -171,7 +166,7 @@ public class BooleanTest : MonoBehaviour
                     verts.Add(np);
                     norms.Add(-d);
 
-                    debugPoints.Add(np);
+                    //debugPoints.Add(np);
 
                     break;
                 }
@@ -198,7 +193,7 @@ public class BooleanTest : MonoBehaviour
                 verts.Add(np);
                 norms.Add(-d);
 
-                debugPoints.Add(np);
+                //debugPoints.Add(np);
             }
         }
 
@@ -449,7 +444,7 @@ public class BooleanTest : MonoBehaviour
         return result;
     }
 
-    int FindNewVertex(ChangedVertex[] c, int old)
+    public static int FindNewVertex(ChangedVertex[] c, int old)
     {
         for (int i = 0; i < c.Length; i++)
         {
@@ -462,7 +457,7 @@ public class BooleanTest : MonoBehaviour
         return -1;
     }
 
-    int FindCorrectNewVertex(ChangedVertex c, int connection)
+    public static int FindCorrectNewVertex(ChangedVertex c, int connection)
     {
         for (int i = 0; i < c.connectingIndices.Count; i++)
         {
@@ -475,7 +470,7 @@ public class BooleanTest : MonoBehaviour
         return -1;
     }
 
-    int GetAdjustment(int[] adjustments, int[] values, int raw)
+    public static int GetAdjustment(int[] adjustments, int[] values, int raw)
     {
         int sum = 0;
 
@@ -490,7 +485,7 @@ public class BooleanTest : MonoBehaviour
         return sum;
     }
 
-    ChangedVertex FindChangedVertexMatch(ChangedVertex[] data, int target)
+    public static ChangedVertex FindChangedVertexMatch(ChangedVertex[] data, int target)
     {
         for (int i = 0; i < data.Length; i++)
         {
@@ -503,7 +498,7 @@ public class BooleanTest : MonoBehaviour
         return null;
     }
 
-    int[] GetConnectingIndices(int v, int[] tris)
+    public static int[] GetConnectingIndices(int v, int[] tris)
     {
         List<int> result = new List<int>();
 
@@ -527,7 +522,7 @@ public class BooleanTest : MonoBehaviour
         return result.ToArray();
     }
 
-    bool IsPointInRect(Vector3 point, Transform tool)
+    public static bool IsPointInRect(Vector3 point, Transform tool)
     {
         Vector3 min = Vector3.one * -0.5f;
         Vector3 max = Vector3.one * 0.5f;
@@ -535,7 +530,7 @@ public class BooleanTest : MonoBehaviour
     }
 
     // involves direction
-    Vector3 GetPointInRect(Vector3 point, Vector3 desiredPoint, Transform tool)
+    public static Vector3 GetPointInRect(Vector3 point, Vector3 desiredPoint, Transform tool)
     {
         Vector3 min = Vector3.one * -0.5f;
         Vector3 max = Vector3.one * 0.5f;
@@ -543,21 +538,21 @@ public class BooleanTest : MonoBehaviour
     }
 
     // no direction, just clamping
-    Vector3 GetPointInRectSimple(Vector3 point, Transform tool)
+    public static Vector3 GetPointInRectSimple(Vector3 point, Transform tool)
     {
         Vector3 min = Vector3.one * -0.5f;
         Vector3 max = Vector3.one * 0.5f;
         return tool.TransformPoint(GetPointInAlignedBounds(tool.InverseTransformPoint(point), min, max));
     }
 
-    bool IsPointInAlignedBounds(Vector3 point, Vector3 minBounds, Vector3 maxBounds)
+    public static bool IsPointInAlignedBounds(Vector3 point, Vector3 minBounds, Vector3 maxBounds)
     {
         return point.x > minBounds.x && point.x < maxBounds.x
         && point.y > minBounds.y && point.y < maxBounds.y
         && point.z > minBounds.z && point.z < maxBounds.z;
     }
 
-    Vector3 GetPointInAlignedBounds(Vector3 point, Vector3 minBounds, Vector3 maxBounds)
+    public static Vector3 GetPointInAlignedBounds(Vector3 point, Vector3 minBounds, Vector3 maxBounds)
     {
         return new Vector3(
             Mathf.Clamp(point.x, minBounds.x, maxBounds.x),
@@ -566,7 +561,7 @@ public class BooleanTest : MonoBehaviour
         );
     }
 
-    Vector3 GetDirectedPointInAlignedBounds(Vector3 point, Vector3 dir, Vector3 minBounds, Vector3 maxBounds)
+    public static Vector3 GetDirectedPointInAlignedBounds(Vector3 point, Vector3 dir, Vector3 minBounds, Vector3 maxBounds)
     {
         Vector3 raw = new Vector3(
             Mathf.Clamp(point.x, minBounds.x, maxBounds.x),
@@ -577,26 +572,5 @@ public class BooleanTest : MonoBehaviour
         float dist = (raw - point).magnitude;
 
         return point + dir.normalized * dist / Mathf.Cos(Vector3.Angle(dir, raw - point) * Mathf.PI / 180);
-    }
-}
-
-public class ChangedVertex
-{
-    public int oldVertIndex;
-
-    public List<int> newIndices; // new
-    public List<int> connectingIndices; // from source
-
-    public ChangedVertex()
-    {
-        newIndices = new List<int>();
-        connectingIndices = new List<int>();
-    }
-
-    public ChangedVertex(int oldVertIndex)
-    {
-        this.oldVertIndex = oldVertIndex;
-        newIndices = new List<int>();
-        connectingIndices = new List<int>();
     }
 }

@@ -6,7 +6,7 @@ using UnityEngine;
 [System.Serializable]
 public class rw_userprefs
 {
-    public static string moleculeDirectory = "C:\\Users\\maxim\\Desktop\\molecule export";
+    public static string moleculeDirectory = "C:\\Users\\maxim\\Desktop\\molecule export\\";
     public static rw_userprefs FactoryDefaults()
     {
         rw_userprefs result = new rw_userprefs();
