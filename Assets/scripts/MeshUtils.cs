@@ -3,6 +3,26 @@ using UnityEngine;
 
 public class MeshUtils
 {
+    public static Mesh ScaleMesh(Mesh input, Vector3 scaleFactors)
+    {
+        Mesh result = new Mesh();
+
+        List<Vector3> verts = new List<Vector3>();
+        List<Vector2> uvs = new List<Vector2>();
+
+        for (int i = 0; i < input.vertices.Length; i++)
+        {
+            uvs.Add(Vector3.one);
+            verts.Add(new Vector3(input.vertices[i].x * scaleFactors.x, input.vertices[i].y * scaleFactors.y, input.vertices[i].z * scaleFactors.z));
+        }
+
+        result.SetVertices(verts.ToArray());
+        result.SetNormals(input.normals);
+        result.SetUVs(0, uvs);
+        result.SetTriangles(input.GetTriangles(0), 0);
+
+        return result;
+    }
     public static Mesh CombineMeshes(Mesh[] input)
     {
         Vector3[] vo = new Vector3[input.Length];

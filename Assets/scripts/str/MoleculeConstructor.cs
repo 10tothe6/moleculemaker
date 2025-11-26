@@ -329,6 +329,7 @@ public class MoleculeConstructor : MonoBehaviour
         {
             atomCountDisplay.text += atomNames[i] + ": " + atomCounts[i].ToString() + "     ";
         }
+        atomCountDisplay.text += "Bonds: " + bonds.Count;
 
         // some quick hotkeys
         if (Keyboard.current.digit1Key.wasReleasedThisFrame)

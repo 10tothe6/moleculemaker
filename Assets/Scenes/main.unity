@@ -4386,6 +4386,7 @@ MonoBehaviour:
   t_exportContainer: {fileID: 1821707729}
   toCut: {fileID: 827362412}
   sphereMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+  cubeMesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
   cutter: {fileID: 954923786}
 --- !u!1 &1063431497
 GameObject:
