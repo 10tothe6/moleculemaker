@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.Rendering;
 
 public enum ViewMode
 {
@@ -85,6 +86,8 @@ public class MoleculeConstructor : MonoBehaviour
     public TextMeshProUGUI atomCountDisplay;
     public TextMeshProUGUI viewDisplay;
 
+    public GameObject p_lonePair;
+
     private int[] atomCounts;
 
 
@@ -92,9 +95,14 @@ public class MoleculeConstructor : MonoBehaviour
 
     public float doubleBondSpacing;
 
+    private List<str_lonepair> lonePairs;
+    public Transform t_pairContainer;
+
 
     void Start()
     {
+        lonePairs = new List<str_lonepair>();
+
         atomCounts = new int[atomNames.Length];
         Application.targetFrameRate = 60;
         atomObjects = new List<Transform>();
@@ -181,11 +189,12 @@ public class MoleculeConstructor : MonoBehaviour
             }
         }
         
+        UIManager.Instance.GenerateAtomLabels();
         g_newAtom.transform.position = pos;
         atomObjects.Add(g_newAtom.transform);
+        GenerateBondLines();
 
         CountAtoms();
-        UIManager.Instance.GenerateAtomLabels();
     }
 
     public void GrabAtom(int type)
@@ -264,7 +273,42 @@ public class MoleculeConstructor : MonoBehaviour
 
             usedBonds.Add(bonds[i]);
         }
+
+        ClearLonePairs();
+
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            int valenceCount = 8 - atomBondSpaces[atomObjects[i].GetComponent<VisualAtom>().type];
+            for (int j = 0; j < bonds.Count; j++)
+            {
+                if (bonds[j].a == i || bonds[j].b == i)
+                {
+                    valenceCount--;
+                }
+            }
+
+            int numLonePairs = Mathf.FloorToInt(valenceCount / 2f);
+
+            for (int j = 0; j < numLonePairs; j++)
+            {
+                GameObject g_newPair = Instantiate(p_lonePair, t_atomContainer);
+                g_newPair.GetComponent<VisualAtom>().type = -1;
+                atomObjects.Add(g_newPair.transform);
+                lonePairs.Add(new str_lonepair(atomObjects.Count, i));
+            }
+        }
     }
+
+    void ClearLonePairs()
+    {
+        for (int i = 0; i < lonePairs.Count; i++)
+        {
+            Destroy(atomObjects[lonePairs[i].objectIndex]);
+            atomObjects.RemoveAt(lonePairs[i].objectIndex);
+        }
+        lonePairs.Clear();
+    }
+
     void RefreshBondLines()
     {
         List<str_bond> usedBonds = new List<str_bond>();
@@ -395,6 +439,11 @@ public class MoleculeConstructor : MonoBehaviour
 
     bool IsAtomFilled(VisualAtom target)
     {
+        return AtomFillCount(target) <= 0;
+    }
+
+    int AtomFillCount(VisualAtom target)
+    {
         int desiredSum = atomBondSpaces[target.type];
         int sum = 0;
         int tIndex = -1;
@@ -408,7 +457,7 @@ public class MoleculeConstructor : MonoBehaviour
             }
         }
 
-        if (tIndex == -1) return false;
+        if (tIndex == -1) return 999;
 
         for (int i = 0; i < bonds.Count; i++)
         {
@@ -418,7 +467,7 @@ public class MoleculeConstructor : MonoBehaviour
             }
         }
 
-        return desiredSum <= sum;
+        return desiredSum - sum;
     }
 
     void UpdateViewMode()

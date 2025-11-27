@@ -98,10 +98,11 @@ public class UIManager : MonoBehaviour
     void RefreshAtomLabels()
     {
         // just updating the position is all
+        int n = 0;
         for (int i = 0; i < MoleculeConstructor.Instance.atomObjects.Count; i++)
         {
-            t_atomLabelContainer.GetChild(i).gameObject.SetActive(uiMode == (ushort)UIMode.IndexAtoms);
-            t_atomLabelContainer.GetChild(i).position = Camera.main.WorldToScreenPoint(MoleculeConstructor.Instance.atomObjects[i].position);
+            t_atomLabelContainer.GetChild(n).gameObject.SetActive(uiMode == (ushort)UIMode.IndexAtoms);
+            t_atomLabelContainer.GetChild(n).position = Camera.main.WorldToScreenPoint(MoleculeConstructor.Instance.atomObjects[i].position);
         }
     }
 

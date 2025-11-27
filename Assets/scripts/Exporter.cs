@@ -69,18 +69,26 @@ public class Exporter : MonoBehaviour
 
         float bondWidth = 4f; // 6mm
 
-        float xLimit = 130f;
+        float xLimit = 150f;
 
         float largestX = 0;
 
         float x = 0;
         float y = 0;
+
+        int hSkipCount = 42; // temp
         
         List<int> newPlatePoints = new List<int>();
         newPlatePoints.Add(0);
 
         for (int i = 0; i < input.atomIndices.Count; i++) // 1 for now
         {
+            if (hSkipCount > 0 && input.atomIndices[i].type == 0)
+            {
+                hSkipCount--;
+                continue;
+            }
+
             float scl = MoleculeConstructor.Instance.atomSizes[input.atomIndices[i].type] * 10;
 
             if (scl > largestX)
@@ -133,7 +141,7 @@ public class Exporter : MonoBehaviour
             for (int j = 0; j < directions.Count; j++)
             {
                 // go to where the middle of the bond would be
-                Vector3 v = (input.positions[input.bonds[j].b].ToVector3() - input.positions[input.bonds[j].a].ToVector3());
+                Vector3 v = directions[j];
 
                 if (doubles[j])
                 {
@@ -186,33 +194,35 @@ public class Exporter : MonoBehaviour
 
         // now that we have all the balls (and hopefully we won't need to cut them),
         // we can add the bond objects themselves to the plate
+
+        // temp remove
         
-        for (int i = 0; i < input.bonds.Count; i++)
-        {
+        // for (int i = 0; i < input.bonds.Count; i++)
+        // {
     
-            scales.Add(1);
-            offsets.Add(new Vector3(x, 0, y));
+        //     scales.Add(1);
+        //     offsets.Add(new Vector3(x, 0, y));
 
-            meshes.Add(MeshUtils.ScaleMesh(cubeMesh, new Vector3(bondWidth, (input.positions[input.bonds[i].a].ToVector3() - input.positions[input.bonds[i].b].ToVector3()).magnitude * 10f, bondWidth)));
+        //     meshes.Add(MeshUtils.ScaleMesh(cubeMesh, new Vector3(bondWidth, (input.positions[input.bonds[i].a].ToVector3() - input.positions[input.bonds[i].b].ToVector3()).magnitude * 10f, bondWidth)));
 
-            x += bondWidth + inBetweenSpacing;
+        //     x += bondWidth + inBetweenSpacing;
 
-            if (x >= xLimit)
-            {
-                x = 0;
-                y += largestX+inBetweenSpacing;
-                largestX = bondWidth;
+        //     if (x >= xLimit)
+        //     {
+        //         x = 0;
+        //         y += largestX+inBetweenSpacing;
+        //         largestX = bondWidth;
                 
-            }
+        //     }
 
-            if (y >= xLimit)
-            {
-                x = 0;
-                y = 0;
+        //     if (y >= xLimit)
+        //     {
+        //         x = 0;
+        //         y = 0;
 
-                newPlatePoints.Add(meshes.Count);
-            }
-        }
+        //         newPlatePoints.Add(meshes.Count);
+        //     }
+        // }
 
         // we combine the bonds and balls into one plate
         for (int i = 0; i < newPlatePoints.Count; i++)
