@@ -23,7 +23,7 @@ public class MeshUtils
 
         return result;
     }
-    public static Mesh CombineMeshes(Mesh[] input)
+    public static Mesh CombineMeshes(Mesh[] input, int startIndex, int endIndex)
     {
         Vector3[] vo = new Vector3[input.Length];
         float[] vs = new float[input.Length];
@@ -32,10 +32,10 @@ public class MeshUtils
             vo[i] = Vector3.zero;
             vs[i] = 1;
             }
-        return CombineMeshes(input, vo, vs);
+        return CombineMeshes(input, vo, vs, startIndex, endIndex);
     }
 
-    public static Mesh CombineMeshes(Mesh[] input, Vector3[] offsets, float[] scales)
+    public static Mesh CombineMeshes(Mesh[] input, Vector3[] offsets, float[] scales, int startIndex, int endIndex)
     {
         Mesh result = new Mesh();
 
@@ -45,7 +45,7 @@ public class MeshUtils
         List<int> tris = new List<int>();
 
         int triangleIndexOffset = 0;
-        for (int i = 0; i < input.Length; i++)
+        for (int i = startIndex; i < endIndex + 1; i++)
         {
             List<Vector2> currentUVs = new List<Vector2>();
             input[i].GetUVs(0, currentUVs);

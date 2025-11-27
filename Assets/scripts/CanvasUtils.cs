@@ -3,10 +3,17 @@ using System.Collections.Generic;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
 
+
+
 // A support class with functions for UI
 // This class can be referenced by any other script in the project
 public class CanvasUtils : MonoBehaviour
 {
+    public static bool IsInteractingWithUI()
+    {
+        return !IsCursorInteract(UIManager.Instance.t_canvas.gameObject, false);
+    }
+
     public static List<GameObject> GetImageObjectsInChildren(GameObject parent, bool inclueParent)
     {
         List<GameObject> toReturn = new List<GameObject>();

@@ -1,8 +1,13 @@
 using System.Collections.Generic;
-using System.Data;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
+
+public enum ViewMode
+{
+    Normal,
+    FilledAtoms,
+}
 
 // all molecule editing code is in here, 
 // I'd hate to have one big file like this but then again this is a small software so its chill
@@ -78,8 +83,15 @@ public class MoleculeConstructor : MonoBehaviour
     public VisualAtom interactingAtom;
 
     public TextMeshProUGUI atomCountDisplay;
+    public TextMeshProUGUI viewDisplay;
 
     private int[] atomCounts;
+
+
+    private ushort viewModeIndex;
+
+    public float doubleBondSpacing;
+
 
     void Start()
     {
@@ -88,6 +100,8 @@ public class MoleculeConstructor : MonoBehaviour
         atomObjects = new List<Transform>();
 
         LoadMolecule(rw_utils.LoadMolecule());
+
+        viewDisplay.text = "View Mode: Colored Atoms";
     }
 
     void OnApplicationQuit()
@@ -171,6 +185,7 @@ public class MoleculeConstructor : MonoBehaviour
         atomObjects.Add(g_newAtom.transform);
 
         CountAtoms();
+        UIManager.Instance.GenerateAtomLabels();
     }
 
     public void GrabAtom(int type)
@@ -196,9 +211,36 @@ public class MoleculeConstructor : MonoBehaviour
         GenerateBondLines();
     }
 
+    int GetDuplicateBond(str_bond[] bonds, str_bond toLookFor)
+    {
+        int result = -1;
+        for (int i = 0; i < bonds.Length; i++)
+        {
+            if (bonds[i].a == toLookFor.a && bonds[i].b == toLookFor.b)
+            {
+                result = i;
+            }
+            if (bonds[i].b == toLookFor.a && bonds[i].a == toLookFor.b)
+            {
+                result = i;
+            }
+        }
+
+        return result;
+    }
+
+    bool HasDuplicateBond(str_bond[] bonds, str_bond toLookFor)
+    {
+        return GetDuplicateBond(bonds, toLookFor) != -1;
+    }
+
+
     void GenerateBondLines()
     {
         CanvasUtils.DestroyChildren(t_bondContainer.gameObject);
+
+        List<str_bond> usedBonds = new List<str_bond>();
+
         for (int i = 0; i < bonds.Count; i++)
         {
             Vector3 a = atomObjects[bonds[i].a].position;
@@ -212,10 +254,21 @@ public class MoleculeConstructor : MonoBehaviour
                 (b-a).magnitude,
                 bondWidth
             );
+
+            int dupe = GetDuplicateBond(usedBonds.ToArray(), bonds[i]);
+            if (dupe != -1)
+            {
+                g_newBond.transform.position = (a + b) / 2 + g_newBond.transform.right * doubleBondSpacing;
+                t_bondContainer.GetChild(dupe).transform.position = (a + b) / 2 - g_newBond.transform.right * doubleBondSpacing;
+            }
+
+            usedBonds.Add(bonds[i]);
         }
     }
     void RefreshBondLines()
     {
+        List<str_bond> usedBonds = new List<str_bond>();
+
         for (int i = 0; i < bonds.Count; i++)
         {
             Vector3 a = atomObjects[bonds[i].a].position;
@@ -229,6 +282,16 @@ public class MoleculeConstructor : MonoBehaviour
                 (b-a).magnitude,
                 bondWidth
             );
+
+            int dupe = GetDuplicateBond(usedBonds.ToArray(), bonds[i]);
+            if (dupe != -1)
+            {
+                //Debug.Log(2);
+                g_newBond.transform.position = (a + b) / 2 + g_newBond.transform.right * doubleBondSpacing;
+                t_bondContainer.GetChild(dupe).transform.position = (a + b) / 2 - g_newBond.transform.right * doubleBondSpacing;
+            }
+
+            usedBonds.Add(bonds[i]);
         }
     }
     Vector2[] GetBounds()
@@ -319,8 +382,86 @@ public class MoleculeConstructor : MonoBehaviour
         }
     }
 
+    void AdvanceViewMode()
+    {
+        viewModeIndex++;
+        if (viewModeIndex == 2)
+        {
+            viewModeIndex = 0;
+        }
+
+        UpdateViewMode();
+    }
+
+    bool IsAtomFilled(VisualAtom target)
+    {
+        int desiredSum = atomBondSpaces[target.type];
+        int sum = 0;
+        int tIndex = -1;
+
+        for (int i = 0; i < atomObjects.Count; i++)
+        {
+            if (atomObjects[i].GetComponent<VisualAtom>() == target)
+            {
+                tIndex = i;
+                break;
+            }
+        }
+
+        if (tIndex == -1) return false;
+
+        for (int i = 0; i < bonds.Count; i++)
+        {
+            if (bonds[i].a == tIndex || bonds[i].b == tIndex)
+            {
+                sum++;
+            }
+        }
+
+        return desiredSum <= sum;
+    }
+
+    void UpdateViewMode()
+    {
+        if (viewModeIndex == (ushort)ViewMode.Normal)
+        {
+            for (int i = 0; i < atomObjects.Count; i++)
+            {
+                atomObjects[i].GetComponent<MeshRenderer>().sharedMaterial = m_atoms[atomObjects[i].GetComponent<VisualAtom>().type];
+            }
+
+            viewDisplay.text = "View Mode: Colored Atoms";
+        }
+        if (viewModeIndex == (ushort)ViewMode.FilledAtoms)
+        {
+            for (int i = 0; i < atomObjects.Count; i++)
+            {
+                if (IsAtomFilled(atomObjects[i].GetComponent<VisualAtom>()))
+                {
+                    atomObjects[i].GetComponent<MeshRenderer>().sharedMaterial = m_atoms[5];
+                } else
+                {
+                    atomObjects[i].GetComponent<MeshRenderer>().sharedMaterial = m_atoms[3];
+                }
+            }
+            
+            viewDisplay.text = "View Mode: Filled Atom Shells";
+        }
+    }
+
     void Update()
     {
+        // the minus key changes how the molecule is viewed, 
+        // the plus key changes how ui is viewed
+        if (Keyboard.current.minusKey.wasPressedThisFrame)
+        {
+            AdvanceViewMode();
+        }
+        if (Keyboard.current.equalsKey.wasPressedThisFrame)
+        {
+            UIManager.Instance.AdvanceUIMode();
+        }
+
         if (Keyboard.current.pKey.wasPressedThisFrame)
         {
             Exporter.Instance.RunExport(GetMolecule());

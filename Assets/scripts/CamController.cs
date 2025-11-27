@@ -45,7 +45,10 @@ public class CamController : MonoBehaviour
                 transform.Rotate(Vector3.right * Time.deltaTime * Mouse.current.delta.ReadValue().y * orbitSpeed, Space.Self);
             }
 
-            orbitDistance += Mouse.current.scroll.ReadValue().y * scrollSpeed;
+            if (!CanvasUtils.IsInteractingWithUI())
+            {
+                orbitDistance += Mouse.current.scroll.ReadValue().y * scrollSpeed;
+            }
 
             transform.position = orbitPoint - transform.forward * orbitDistance;
             

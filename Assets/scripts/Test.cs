@@ -9,6 +9,6 @@ public class Test : MonoBehaviour
 
     void Start()
     {
-        r.sharedMesh = MeshUtils.CombineMeshes(new Mesh[] {a.sharedMesh, b.sharedMesh});
+        //r.sharedMesh = MeshUtils.CombineMeshes(new Mesh[] {a.sharedMesh, b.sharedMesh});
     }
 }

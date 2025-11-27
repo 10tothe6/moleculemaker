@@ -35,9 +35,24 @@ public class Exporter : MonoBehaviour
     public MeshFilter toCut;
     public Mesh sphereMesh;
     public Mesh cubeMesh;
+
     public Transform cutter;
+    public Transform cutter2;
 
     private str_molecule toExport;
+
+    int GetMatchingVector(Vector3[] data, Vector3 target)
+    {
+        for (int i = 0; i < data.Length; i++)
+        {
+            if (Vector3.Distance(data[i], target) < 0.05f || Vector3.Distance(data[i], -target) < 0.05f)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
     public void RunExport(str_molecule input)
     {
         toExport = input;
@@ -60,6 +75,10 @@ public class Exporter : MonoBehaviour
 
         float x = 0;
         float y = 0;
+        
+        List<int> newPlatePoints = new List<int>();
+        newPlatePoints.Add(0);
+
         for (int i = 0; i < input.atomIndices.Count; i++) // 1 for now
         {
             float scl = MoleculeConstructor.Instance.atomSizes[input.atomIndices[i].type] * 10;
@@ -73,26 +92,69 @@ public class Exporter : MonoBehaviour
             offsets.Add(new Vector3(x, 0, y));
 
             toCut.mesh = sphereMesh;
-            
+
+            List<bool> doubles = new List<bool>();
+            List<Vector3> directions = new List<Vector3>();
+
             for (int j = 0; j < input.bonds.Count; j++)
             {
-                // if a bond connects to this atom, stamp it in
+                // recording either single or double bonds to stamp
                 if (input.bonds[j].a == i)
                 {
                     // go to where the middle of the bond would be
                     Vector3 v = (input.positions[input.bonds[j].b].ToVector3() - input.positions[input.bonds[j].a].ToVector3());
-                    cutter.position = v/2;
-                    cutter.up = v;
-                    cutter.localScale = new Vector3(bondWidth/scl, v.magnitude * 0.6f, bondWidth/scl);
-
-                    toCut.mesh = MeshUtils.BooleanCut(toCut.mesh, cutter);
+                    int matching = GetMatchingVector(directions.ToArray(), v);
+                    if (matching == -1)
+                    {
+                        directions.Add(v);
+                        doubles.Add(false);
+                    }
+                    else
+                    {
+                        doubles[matching] = true;
+                    }
                 }
                 if (input.bonds[j].b == i)
                 {
                     Vector3 v = (input.positions[input.bonds[j].a].ToVector3() - input.positions[input.bonds[j].b].ToVector3());
+                    int matching = GetMatchingVector(directions.ToArray(), v);
+                    if (matching == -1)
+                    {
+                        directions.Add(v);
+                        doubles.Add(false);
+                    }
+                    else
+                    {
+                        doubles[matching] = true;
+                    }
+                }
+            }
+            
+            for (int j = 0; j < directions.Count; j++)
+            {
+                // go to where the middle of the bond would be
+                Vector3 v = (input.positions[input.bonds[j].b].ToVector3() - input.positions[input.bonds[j].a].ToVector3());
+
+                if (doubles[j])
+                {
                     cutter.position = v/2;
                     cutter.up = v;
-                    cutter.localScale = new Vector3(bondWidth/scl, v.magnitude * 0.6f, bondWidth/scl);
+                    cutter.localScale = new Vector3((bondWidth+0.3f)/scl, v.magnitude * 0.6f, (bondWidth+0.3f)/scl);
+
+                    cutter2.position = cutter.position;
+                    cutter2.up = v;
+                    cutter2.localScale = new Vector3((bondWidth+0.3f)/scl, v.magnitude * 0.6f, (bondWidth+0.3f)/scl);
+
+                    cutter.position += cutter.right * MoleculeConstructor.Instance.doubleBondSpacing;
+                    cutter2.position -= cutter.right * MoleculeConstructor.Instance.doubleBondSpacing;
+
+                    toCut.mesh = MeshUtils.BooleanCut(toCut.mesh, cutter);
+                    toCut.mesh = MeshUtils.BooleanCut(toCut.mesh, cutter2);
+                } else
+                {
+                    cutter.position = v/2;
+                    cutter.up = v;
+                    cutter.localScale = new Vector3((bondWidth+0.3f)/scl, v.magnitude * 0.6f, (bondWidth+0.3f)/scl);
 
                     toCut.mesh = MeshUtils.BooleanCut(toCut.mesh, cutter);
                 }
@@ -112,6 +174,14 @@ public class Exporter : MonoBehaviour
                 y += largestX+inBetweenSpacing;
                 largestX = 0;
             }
+
+            if (y >= xLimit)
+            {
+                x = 0;
+                y = 0;
+
+                newPlatePoints.Add(meshes.Count);
+            }
         }
 
         // now that we have all the balls (and hopefully we won't need to cut them),
@@ -119,6 +189,7 @@ public class Exporter : MonoBehaviour
         
         for (int i = 0; i < input.bonds.Count; i++)
         {
+    
             scales.Add(1);
             offsets.Add(new Vector3(x, 0, y));
 
@@ -130,14 +201,34 @@ public class Exporter : MonoBehaviour
             {
                 x = 0;
                 y += largestX+inBetweenSpacing;
-                largestX = 0;
+                largestX = bondWidth;
+                
+            }
+
+            if (y >= xLimit)
+            {
+                x = 0;
+                y = 0;
+
+                newPlatePoints.Add(meshes.Count);
             }
         }
 
         // we combine the bonds and balls into one plate
-        Mesh plate = MeshUtils.CombineMeshes(meshes.ToArray(), offsets.ToArray(), scales.ToArray());
+        for (int i = 0; i < newPlatePoints.Count; i++)
+        {
+            Mesh plate;
+            if (i < newPlatePoints.Count - 1)
+            {
+                plate = MeshUtils.CombineMeshes(meshes.ToArray(), offsets.ToArray(), scales.ToArray(), newPlatePoints[i], newPlatePoints[i+1] - 1);
+            }
+            else
+            {
+                plate = MeshUtils.CombineMeshes(meshes.ToArray(), offsets.ToArray(), scales.ToArray(), newPlatePoints[i], meshes.Count - 1);
+            }
 
-        OBJExporter.ExportMeshToObj(plate, "C:\\Users\\maxim\\Desktop\\molecule export\\export.obj");
+            OBJExporter.ExportMeshToObj(plate, "C:\\Users\\maxim\\Desktop\\molecule export\\export" + i + ".obj");
+        }
     }
 
     // ewww duplicate function from MoleculeConstructor.cs
