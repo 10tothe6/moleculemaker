@@ -63,6 +63,7 @@ public class MoleculeConstructor : MonoBehaviour
     public float repulsionCoefficient;
     public float agitationCoefficient;
     public float separationCoefficient; // different bond heirarchies
+    public float electronCoefficient; // multiplier for electron pairs
 
     public VisualAtom atomInHand;
     public GameObject p_atom;
@@ -98,9 +99,17 @@ public class MoleculeConstructor : MonoBehaviour
     private List<str_lonepair> lonePairs;
     public Transform t_pairContainer;
 
+    public float electronDistance;
+
+    public float lim;
+
+    public TMP_InputField in_repulsion;
+    public TMP_InputField in_agitation;
+
 
     void Start()
     {
+        PopulateRepulsionAgitationFields();
         lonePairs = new List<str_lonepair>();
 
         atomCounts = new int[atomNames.Length];
@@ -179,20 +188,21 @@ public class MoleculeConstructor : MonoBehaviour
         comp.type = type;
         comp.SetType();
 
+        atomObjects.Add(g_newAtom.transform);
+
         if (addToHand)
         {
             atomInHand = comp;
 
-            if (atomObjects.Count == 0)
+            if (atomObjects.Count == 1)
             {
                 atomInHand = null;
+                GenerateBondLines();
             }
         }
-        
+
         UIManager.Instance.GenerateAtomLabels();
         g_newAtom.transform.position = pos;
-        atomObjects.Add(g_newAtom.transform);
-        GenerateBondLines();
 
         CountAtoms();
     }
@@ -247,6 +257,7 @@ public class MoleculeConstructor : MonoBehaviour
     void GenerateBondLines()
     {
         CanvasUtils.DestroyChildren(t_bondContainer.gameObject);
+        ClearLonePairs();
 
         List<str_bond> usedBonds = new List<str_bond>();
 
@@ -274,11 +285,14 @@ public class MoleculeConstructor : MonoBehaviour
             usedBonds.Add(bonds[i]);
         }
 
-        ClearLonePairs();
-
         for (int i = 0; i < atomObjects.Count; i++)
         {
-            int valenceCount = 8 - atomBondSpaces[atomObjects[i].GetComponent<VisualAtom>().type];
+            int type = atomObjects[i].GetComponent<VisualAtom>().type;
+            int valenceCount = 8 - atomBondSpaces[type];
+            if (type == 0)
+            {
+                valenceCount = 1;
+            }
             for (int j = 0; j < bonds.Count; j++)
             {
                 if (bonds[j].a == i || bonds[j].b == i)
@@ -291,21 +305,27 @@ public class MoleculeConstructor : MonoBehaviour
 
             for (int j = 0; j < numLonePairs; j++)
             {
-                GameObject g_newPair = Instantiate(p_lonePair, t_atomContainer);
-                g_newPair.GetComponent<VisualAtom>().type = -1;
-                atomObjects.Add(g_newPair.transform);
-                lonePairs.Add(new str_lonepair(atomObjects.Count, i));
+                GameObject g_newPair = Instantiate(p_lonePair, t_pairContainer);
+
+                g_newPair.transform.position = new Vector3(
+                    Random.Range(-1f, 1f),
+                    Random.Range(-1f, 1f),
+                    Random.Range(-1f, 1f)
+                );
+
+                g_newPair.transform.position = 
+                atomObjects[i].position + (
+                    g_newPair.transform.position - atomObjects[i].position
+                ) * atomSizes[atomObjects[i].GetComponent<VisualAtom>().type] * 1.1f * atomSizeMultiplier;
+                
+                lonePairs.Add(new str_lonepair(lonePairs.Count, i));
             }
         }
     }
 
     void ClearLonePairs()
     {
-        for (int i = 0; i < lonePairs.Count; i++)
-        {
-            Destroy(atomObjects[lonePairs[i].objectIndex]);
-            atomObjects.RemoveAt(lonePairs[i].objectIndex);
-        }
+        CanvasUtils.DestroyChildren(t_pairContainer.gameObject);
         lonePairs.Clear();
     }
 
@@ -497,9 +517,48 @@ public class MoleculeConstructor : MonoBehaviour
             viewDisplay.text = "View Mode: Filled Atom Shells";
         }
     }
+    
+    public void TogglePause()
+    {
+        pause = !pause;
+    }
+
+    void PopulateRepulsionAgitationFields()
+    {
+        in_repulsion.text = repulsionCoefficient.ToString();
+        in_agitation.text = agitationCoefficient.ToString();
+    }
+
+    public void SetRepulsionForce(float f)
+    {
+        repulsionCoefficient = f;
+    }
+    public void SetRepulsionForce(TMP_InputField data)
+    {
+        float result;
+        if (float.TryParse(data.text, out result))
+        {
+            SetRepulsionForce(result);
+        }
+    }
+    public void SetAgitationForce(float f)
+    {
+        agitationCoefficient = f;
+    }
+    public void SetAgitationForce(TMP_InputField data)
+    {
+        float result;
+        if (float.TryParse(data.text, out result))
+        {
+            SetAgitationForce(result);
+        }
+    }
 
     void Update()
     {
+        if (atomObjects.Count > 2)
+            Debug.Log(Vector3.Angle(atomObjects[1].position - atomObjects[0].position, atomObjects[2].position - atomObjects[0].position));
+
         // the minus key changes how the molecule is viewed, 
         // the plus key changes how ui is viewed
         if (Keyboard.current.minusKey.wasPressedThisFrame)
@@ -583,7 +642,7 @@ public class MoleculeConstructor : MonoBehaviour
 
         if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
-            pause = !pause;
+            TogglePause();
         }
 
         if (atomInHand != null)
@@ -678,7 +737,9 @@ public class MoleculeConstructor : MonoBehaviour
 
     void Adjust()
     {
-        Vector3[] force = new Vector3[atomObjects.Count];
+        Vector3[] force = new Vector3[atomObjects.Count + lonePairs.Count];
+        
+        // for the atoms
         for (int i = 0; i < atomObjects.Count; i++)
         {
             force[i] = Vector3.zero;
@@ -687,7 +748,7 @@ public class MoleculeConstructor : MonoBehaviour
                 if (j != i)
                 {
                     Vector3 v = atomObjects[i].position - atomObjects[j].position;
-                    Vector3 f = v.normalized / Mathf.Pow(v.magnitude, 2) * repulsionCoefficient;
+                    Vector3 f = v.normalized / Mathf.Pow(v.magnitude, 12) * repulsionCoefficient;
                     if (!IsSameBondingHeirarchy(i, j))
                     {
                         f *= separationCoefficient;
@@ -695,12 +756,52 @@ public class MoleculeConstructor : MonoBehaviour
                     force[i] += f;
                 }
             }
+            for (int j = 0; j < lonePairs.Count; j++)
+            {
+                Vector3 v = atomObjects[i].position - t_pairContainer.GetChild(lonePairs[j].objectIndex).position;
+                Vector3 f = v.normalized / Mathf.Pow(v.magnitude, 12) * repulsionCoefficient;
+                force[i] += f * electronCoefficient;
+            }
         }
+        // for the electron pairs
+        for (int i = atomObjects.Count; i < force.Length; i++)
+        {
+            force[i] = Vector3.zero;
 
+            for (int j = 0; j < atomObjects.Count; j++)
+            {
+                Vector3 v = t_pairContainer.GetChild(lonePairs[i - atomObjects.Count].objectIndex).position - atomObjects[j].position;
+                    Vector3 f = v.normalized / Mathf.Pow(v.magnitude, 12) * repulsionCoefficient;
+                    if (lonePairs[i - atomObjects.Count].atomObjectIndex != j)
+                    {
+                        force[i] += f;
+                    }
+            }
+            for (int j = 0; j < lonePairs.Count; j++)
+            {
+                if (i - atomObjects.Count != j)
+                {
+                    Vector3 v = t_pairContainer.GetChild(lonePairs[i - atomObjects.Count].objectIndex).position - t_pairContainer.GetChild(lonePairs[j].objectIndex).position;
+                    Vector3 f = v.normalized / Mathf.Pow(v.magnitude, 12) * repulsionCoefficient;
+                    force[i] += f * electronCoefficient;
+                }
+                
+            }
+        }
 
         for (int i = 0; i < atomObjects.Count; i++)
         {
+            float mag = force[i].magnitude;
+            force[i] = force[i].normalized * Mathf.Min(mag, lim);
+
             atomObjects[i].position += force[i] + new Vector3(Random.Range(-1,1), Random.Range(-1,1), Random.Range(-1,1)) * agitationCoefficient;
+        }
+        for (int i = atomObjects.Count; i < force.Length; i++)
+        {
+            float mag = force[i].magnitude;
+            force[i] = force[i].normalized * Mathf.Min(mag, lim);
+
+            t_pairContainer.GetChild(lonePairs[i - atomObjects.Count].objectIndex).position += force[i] + new Vector3(Random.Range(-1,1), Random.Range(-1,1), Random.Range(-1,1)) * agitationCoefficient;
         }
     }
 
@@ -747,6 +848,15 @@ public class MoleculeConstructor : MonoBehaviour
 
             atomObjects[bonds[randomIndices[i]].a].position = (a + b) / 2 + (a - b).normalized * bonds[randomIndices[i]].bondLength / 2;
             atomObjects[bonds[randomIndices[i]].b].position = (a + b) / 2 + (b - a).normalized * bonds[randomIndices[i]].bondLength / 2;
+        }
+
+        for (int i = 0; i < lonePairs.Count; i++)
+        {
+            Vector3 a = atomObjects[lonePairs[i].atomObjectIndex].position;
+            Vector3 b = t_pairContainer.GetChild(lonePairs[i].objectIndex).position;
+
+            atomObjects[lonePairs[i].atomObjectIndex].position = (a + b) / 2 + (a - b).normalized * electronDistance;
+            t_pairContainer.GetChild(lonePairs[i].objectIndex).position = (a + b) / 2 + (b - a).normalized * electronDistance;
         }
 
         Vector3 m = Vector3.zero;
